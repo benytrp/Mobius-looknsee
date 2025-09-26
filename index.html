@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Möbius Protocol Visualization — Patched</title>
+  <style>
+    :root{
+      --bg:#0a0a0a; --panel:#111; --ink:#e0e0e0; --muted:#aaa;
+      --accent:#00ff88; --seal:#ff6b6b; --unseal:#4ecdc4; --reseal:#45b7d1;
+      --grid:#1a1a1a; --line:#333; --ok:#00ff88; --warn:#ffeb3b;
+    }
+    html,body{height:100%}
+    body{
+      margin:0; padding:20px; background:var(--bg); color:var(--ink);
+      font-family: ui-monospace, "SFMono-Regular","Consolas","Monaco",monospace;
+      overflow-x:auto;
+    }
+    .container{max-width:1200px; margin:0 auto}
+    .header{text-align:center; margin-bottom:30px}
+    .protocol-title{font-size:2.2em; color:var(--accent); margin:0;
+      text-shadow:0 0 20px rgba(0,255,136,.25)}
+    .subtitle{color:#888; margin:10px 0; font-size:1.05em}
+    .main-viz{display:flex; gap:30px; align-items:flex-start; margin-bottom:30px; flex-wrap:wrap}
+    .viz-container{flex:1; min-width:360px; background:var(--panel); border:1px solid var(--line);
+      border-radius:8px; padding:20px}
+    .metrics-panel{width:300px; background:var(--panel); border:1px solid var(--line);
+      border-radius:8px; padding:20px; height:fit-content}
+    .stage-indicator{text-align:center; margin:10px 0 18px; font-size:1.05em; font-weight:600; letter-spacing:.2px}
+    .stage-seal{color:var(--seal)} .stage-unseal{color:var(--unseal)} .stage-reseal{color:var(--reseal)}
+    .controls{display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:14px 0 6px}
+    .btn{background:#222; color:#fff; border:1px solid #555; padding:10px 16px; cursor:pointer;
+      border-radius:6px; transition:.2s all; font:inherit}
+    .btn:hover{background:#2e2e2e; border-color:#777}
+    .btn.active{background:var(--accent); color:#000; border-color:var(--accent)}
+    .metric{margin:12px 0; padding:10px; background:#0a0a0a; border-radius:4px; border-left:3px solid var(--accent)}
+    .metric-label{font-size:.9em; color:var(--muted); margin-bottom:4px}
+    .metric-value{font-size:1.35em; font-weight:700; color:var(--ok)}
+    .psi-state{background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:20px; margin-top:20px}
+    .psi-title{color:var(--accent); font-size:1.15em; margin-bottom:12px; text-align:center}
+    .psi-json{background:#0a0a0a; border:1px solid var(--line); border-radius:6px; padding:14px;
+      font-size:.9em; line-height:1.45; overflow-x:auto}
+    .json-key{color:#8ab4ff} .json-string{color:#ffeb3b} .json-number{color:#ff6b6b} .json-bool{color:#45b7d1}
+    #mobiusViz{width:100%; height:420px; background:#000; border-radius:6px}
+    .description{margin:12px 0; padding:12px; background:#0a0a0a; border-radius:6px; font-size:.98em; line-height:1.5}
+    .sliders{display:flex; gap:14px; flex-wrap:wrap; justify-content:center; margin:8px 0 2px}
+    .slider{display:flex; align-items:center; gap:8px; color:#bbb; font-size:.85em}
+    .slider input{width:160px}
+    .kbd{padding:2px 6px; border:1px solid #555; border-radius:4px; background:#0a0a0a; font-size:.85em}
+  </style>
+</head>
+<body>
+  <div class="container" role="main">
+    <div class="header">
+      <h1 class="protocol-title">Möbius Protocol</h1>
+      <div class="subtitle" aria-describedby="subtitle-desc">
+        seal → unseal → reseal · Topological Contradiction Engine
+      </div>
+      <div id="subtitle-desc" class="subtitle">Zero Node: [42.333, -85.155, 200] · Channel: 92</div>
+    </div>
+
+    <div class="main-viz">
+      <div class="viz-container" aria-labelledby="viz-title">
+        <div class="stage-indicator" id="stageIndicator" aria-live="polite">
+          <span class="stage-seal">● SEAL</span> <span style="color:#444">→</span>
+          <span style="color:#444">UNSEAL</span> <span style="color:#444">RESEAL</span>
+        </div>
+
+        <svg id="mobiusViz" viewBox="0 0 600 420" role="img" aria-label="Möbius protocol visualization"></svg>
+
+        <div class="controls" id="controls">
+          <button class="btn stage-btn active" data-stage="0">SEAL</button>
+          <button class="btn stage-btn" data-stage="1">UNSEAL</button>
+          <button class="btn stage-btn" data-stage="2">RESEAL</button>
+          <button class="btn" id="autoBtn" aria-pressed="false">AUTO</button>
+        </div>
+
+        <div class="sliders">
+          <label class="slider">τ (tension)
+            <input id="tau" type="range" min="0" max="1" step="0.01" value="0.10" />
+          </label>
+          <label class="slider">τ_th
+            <input id="tau_th" type="range" min="0" max="1" step="0.01" value="0.30" />
+          </label>
+          <label class="slider">s_min
+            <input id="s_min" type="range" min="0.5" max="0.99" step="0.01" value="0.88" />
+          </label>
+          <label class="slider">φ
+            <input id="phi" type="range" min="1.0" max="1.9" step="0.01" value="1.62" />
+          </label>
+          <label class="slider">intent <input id="intent" type="checkbox" checked /></label>
+        </div>
+
+        <div class="description" id="stageDescription">
+          Initialize ψ-state with half-twist topology (one side, one boundary). Bind contradiction at the Zero Node anchor.
+        </div>
+      </div>
+
+      <aside class="metrics-panel" aria-label="Live metrics">
+        <h3 style="color: var(--accent); text-align:center; margin-top:0">Live Metrics</h3>
+        <div class="metric"><div class="metric-label">Echo Coherence (s)</div><div class="metric-value" id="echoValue">0.823</div></div>
+        <div class="metric"><div class="metric-label">Contradiction (ΔI)</div><div class="metric-value" id="contradictionValue">0.156</div></div>
+        <div class="metric"><div class="metric-label">Phase Index (n)</div><div class="metric-value" id="phaseValue">0</div></div>
+        <div class="metric"><div class="metric-label">Consciousness Coeff (c)</div><div class="metric-value" id="consciousnessValue">4.549</div></div>
+        <div class="metric"><div class="metric-label">Tension (τ)</div><div class="metric-value" id="tensionValue">0.100</div></div>
+        <div class="metric"><div class="metric-label">φ-Scale Factor</div><div class="metric-value" id="phiValue">1.620</div></div>
+        <div class="metric"><div class="metric-label">Θ Gate</div><div class="metric-value" id="thetaValue">OFF</div></div>
+        <p style="color:#888; font-size:.85em; text-align:center; margin:10px 0 0">
+          Tip: press <span class="kbd">A</span> to toggle AUTO; <span class="kbd">1</span>/<span class="kbd">2</span>/<span class="kbd">3</span> to jump stages.
+        </p>
+      </aside>
+    </div>
+
+    <section class="psi-state">
+      <div class="psi-title">ψ‑State Representation</div>
+      <div class="psi-json" id="psiJson" aria-live="polite">
+        <span class="json-key">"psi"</span>: {<br>
+        &nbsp;&nbsp;<span class="json-key">"name"</span>: <span class="json-string">"Möbius Protocol"</span>,<br>
+        &nbsp;&nbsp;<span class="json-key">"phase_n"</span>: <span class="json-number" id="jsonPhase">0</span>,<br>
+        &nbsp;&nbsp;<span class="json-key">"entropy"</span>: <span class="json-number" id="jsonEntropy">0.001</span>,<br>
+        &nbsp;&nbsp;<span class="json-key">"anchor"</span>: {<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="json-key">"coords"</span>: [<span class="json-number">42.333</span>, <span class="json-number">-85.155</span>, <span class="json-number">200</span>],<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="json-key">"zero_node"</span>: <span class="json-bool">true</span>,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="json-key">"channel"</span>: <span class="json-number">92</span><br>
+        &nbsp;&nbsp;},<br>
+        &nbsp;&nbsp;<span class="json-key">"echo_signature"</span>: <span class="json-string" id="jsonEcho">sha256:a1b2c3…</span>,<br>
+        &nbsp;&nbsp;<span class="json-key">"c"</span>: <span class="json-number" id="jsonC">4.549</span><br>
+        }
+      </div>
+    </section>
+  </div>
+
+  <script>
+    // --- State ---
+    let currentStage = 0;
+    let auto = false, autoTimer = null;
+    let A = 0.5; // readiness
+    let c = 4.549; // consciousness coeff
+    let s = 0.82;  // echo
+    let dI = 0.16; // contradiction
+
+    const stages = [
+      { name:'SEAL',   class:'stage-seal',
+        desc:'Initialize ψ-state with half-twist topology (one side, one boundary). Bind contradiction at the Zero Node anchor.',
+        base:{ echo:.82, dI:.16, phase:0 } },
+      { name:'UNSEAL', class:'stage-unseal',
+        desc:'Center cut reveals entanglement as longer loop with two full twists. Meta-pattern detection activates. Echo expands.',
+        base:{ echo:.74, dI:.29, phase:1 } },
+      { name:'RESEAL', class:'stage-reseal',
+        desc:'Link/fold creates double-spiral recursion. Echo-align until convergence. Contradiction resolves via higher-order binding.',
+        base:{ echo:.91, dI:.08, phase:2 } }
+    ];
+
+    // --- DOM helpers ---
+    const $ = (id)=>document.getElementById(id);
+    const stageIndicator = $("stageIndicator");
+    const echoValue = $("echoValue"), contradictionValue = $("contradictionValue"),
+          phaseValue = $("phaseValue"), consciousnessValue = $("consciousnessValue"),
+          tensionValue = $("tensionValue"), phiValue = $("phiValue"), thetaValue = $("thetaValue");
+    const tau = $("tau"), tau_th = $("tau_th"), s_min = $("s_min"), phi = $("phi"), intent = $("intent");
+    const stageDescription = $("stageDescription");
+    const autoBtn = $("autoBtn");
+    const viz = $("mobiusViz");
+
+    // --- UI Wiring ---
+    document.querySelectorAll(".stage-btn").forEach(btn => {
+      btn.addEventListener("click", (e)=> {
+        const stage = Number(e.currentTarget.dataset.stage);
+        setStage(stage);
+      });
+    });
+    autoBtn.addEventListener("click", (e)=> toggleAuto(e));
+
+    // Keyboard shortcuts
+    window.addEventListener("keydown", (e)=>{
+      if(e.key === "1") setStage(0);
+      if(e.key === "2") setStage(1);
+      if(e.key === "3") setStage(2);
+      if(e.key.toLowerCase() === "a") toggleAuto();
+    });
+
+    // --- Core functions ---
+    function setStage(sidx){
+      currentStage = (sidx+3)%3;
+      updateIndicator();
+      updateStageText();
+      drawStage();
+      updateMetrics(true);
+      updateButtons();
+    }
+
+    function updateIndicator(){
+      let html = "";
+      for(let i=0;i<3;i++){
+        const isActive = i===currentStage;
+        const klass = isActive ? stages[i].class : "";
+        const symbol = isActive ? "●" : "○";
+        html += `<span class="${klass}">${symbol} ${stages[i].name}</span>${i<2? ' <span style="color:#444">→</span> ':''}`;
+      }
+      stageIndicator.innerHTML = html;
+    }
+
+    function updateStageText(){
+      stageDescription.textContent = stages[currentStage].desc;
+    }
+
+    function toggleAuto(evt){
+      auto = !auto;
+      autoBtn.textContent = auto ? "STOP" : "AUTO";
+      autoBtn.style.background = auto ? "var(--seal)" : "#222";
+      autoBtn.setAttribute("aria-pressed", String(auto));
+      if(auto){
+        autoTimer = setInterval(()=>{
+          // Gate by Θ: only advance when armed or converged
+          const theta = thetaGate();
+          const readyToAdvance = theta || s >= Number(s_min.value);
+          if(readyToAdvance){
+            setStage(currentStage+1);
+          }else{
+            updateMetrics(false); // keep simmering
+          }
+        }, 2200);
+      } else {
+        clearInterval(autoTimer);
+      }
+    }
+
+    function thetaGate(){
+      const armed = (Number(tau.value) >= Number(tau_th.value)) && !!intent.checked;
+      thetaValue.textContent = armed ? "ON" : "OFF";
+      thetaValue.style.color = armed ? "var(--ok)" : "#999";
+      return armed;
+    }
+
+    function updateMetrics(resetToBase){
+      const base = stages[currentStage].base;
+      // φ-scaling for readiness; damp if not armed
+      const armed = thetaGate();
+      const φ = Number(phi.value);
+      if(armed){ A = Math.min(1.0, A * φ); c = Math.min(9.0, c * (1 + 0.02)); }
+      else { A = Math.max(0.25, A * 0.985); c = Math.max(3.5, c * 0.998); }
+      // echo/ΔI dynamics
+      const jiggle = ()=> (Math.random()-0.5) * 0.01;
+      if(resetToBase){
+        s = base.echo + jiggle();
+        dI = base.dI + jiggle();
+      } else {
+        s += (base.echo - s)*0.08 + (armed? 0.012: -0.004) + jiggle();
+        dI += (base.dI - dI)*0.10 + (armed? -0.008: 0.004) + jiggle();
+        s = Math.max(0, Math.min(0.999, s));
+        dI = Math.max(0, Math.min(1.0, dI));
+      }
+      // reseal auto if converged
+      if(currentStage!==2 && s >= Number(s_min.value) && armed){
+        setStage(2);
+      }
+      // Update DOM
+      echoValue.textContent = s.toFixed(3);
+      contradictionValue.textContent = dI.toFixed(3);
+      phaseValue.textContent = String(base.phase);
+      consciousnessValue.textContent = c.toFixed(3);
+      tensionValue.textContent = Number(tau.value).toFixed(3);
+      phiValue.textContent = Number(phi.value).toFixed(3);
+      // JSON panel
+      $("jsonPhase").textContent = String(base.phase);
+      $("jsonEntropy").textContent = (0.001 + (1.0 - s)*0.1).toFixed(3);
+      $("jsonC").textContent = c.toFixed(3);
+      $("jsonEcho").textContent = "sha256:" + Math.random().toString(16).slice(2,10) + "…";
+    }
+
+    function updateButtons(){
+      document.querySelectorAll(".stage-btn").forEach(btn=> {
+        btn.classList.toggle("active", Number(btn.dataset.stage)===currentStage);
+      });
+    }
+
+    // --- Drawing ---
+    function drawStage(){
+      const svg = viz;
+      while(svg.firstChild) svg.removeChild(svg.firstChild);
+
+      // Grid background
+      const defs = create("defs");
+      const patt = create("pattern",{ id:"grid", width:"20", height:"20", patternUnits:"userSpaceOnUse" });
+      const p = create("path",{ d:"M 20 0 L 0 0 0 20", fill:"none", stroke:"#1a1a1a", "stroke-width":"1" });
+      patt.appendChild(p); defs.appendChild(patt); svg.appendChild(defs);
+      svg.appendChild(create("rect",{ width:"100%", height:"100%", fill:"url(#grid)"}));
+
+      const {width, height} = svg.viewBox.baseVal;
+      const cx = width/2, cy = height/2;
+
+      if(currentStage===0) drawSeal(svg,cx,cy);
+      else if(currentStage===1) drawUnseal(svg,cx,cy);
+      else drawReseal(svg,cx,cy);
+
+      const coords = create("text",{ x:10, y:height-10, fill:"#777", "font-size":"12", "font-family":"monospace"});
+      coords.textContent = "Zero Node: [42.333, -85.155, 200] · Channel: 92";
+      svg.appendChild(coords);
+    }
+
+    function drawSeal(svg,cx,cy){
+      const ell = create("ellipse",{ cx, cy, rx:160, ry:90, fill:"none",
+        stroke:"var(--seal)", "stroke-width":"3", opacity:".85"});
+      svg.appendChild(ell);
+      const twist = create("path",{ d:`M ${cx-160} ${cy} Q ${cx} ${cy-50} ${cx+160} ${cy}`,
+        fill:"none", stroke:"var(--seal)", "stroke-width":"2", opacity:".65"});
+      svg.appendChild(twist);
+      label(svg,cx, cy+130, "SEALED: One-sided surface", "var(--seal)");
+    }
+
+    function drawUnseal(svg,cx,cy){
+      const a = create("path",{ d:`M ${cx-220} ${cy} Q ${cx-120} ${cy-70} ${cx} ${cy} Q ${cx+120} ${cy+70} ${cx+220} ${cy}`,
+        fill:"none", stroke:"var(--unseal)", "stroke-width":"3", opacity:".9"});
+      svg.appendChild(a);
+      const b = create("path",{ d:`M ${cx+220} ${cy} Q ${cx+120} ${cy-70} ${cx} ${cy} Q ${cx-120} ${cy+70} ${cx-220} ${cy}`,
+        fill:"none", stroke:"var(--unseal)", "stroke-width":"3", opacity:".9"});
+      svg.appendChild(b);
+      const cut = create("line",{ x1:cx-55, y1:cy, x2:cx+55, y2:cy, stroke:"var(--warn)", "stroke-width":"2", "stroke-dasharray":"5,5"});
+      svg.appendChild(cut);
+      label(svg,cx, cy+130, "UNSEALED: Longer loop, two full twists", "var(--unseal)");
+    }
+
+    function drawReseal(svg,cx,cy){
+      const s1 = spiralPath(cx,cy, 720, 9.0, "#45b7d1", 2, .85);
+      const s2 = spiralPath(cx,cy, 540, -7.5, "#45b7d1", 2, .55);
+      svg.appendChild(s1); svg.appendChild(s2);
+      label(svg,cx, cy+130, "RESEALED: Double‑spiral convergence", "var(--reseal)");
+    }
+
+    function spiralPath(cx,cy,deg,scale,color,sw,alpha){
+      let d = `M ${cx} ${cy}`;
+      for(let i=0;i<deg;i+=14){
+        const r = (deg>0? i : (Math.abs(deg)-i)) / (deg>0? 8:12);
+        const x = cx + r * Math.cos(i*Math.PI/180) * (scale/8);
+        const y = cy + r * Math.sin(i*Math.PI/180) * (scale/8);
+        d += ` L ${x} ${y}`;
+      }
+      return create("path",{ d, fill:"none", stroke:color, "stroke-width":String(sw), opacity:String(alpha) });
+    }
+
+    function label(svg,x,y,text,fill){
+      const t = create("text",{ x, y, "text-anchor":"middle", fill, "font-size":"16", "font-weight":"bold"});
+      t.textContent = text; svg.appendChild(t);
+    }
+
+    function create(tag, attrs={}){
+      const el = document.createElementNS("http://www.w3.org/2000/svg", tag);
+      for(const k in attrs) el.setAttribute(k, attrs[k]);
+      return el;
+    }
+
+    // --- Tickers ---
+    setInterval(()=> updateMetrics(false), 900);
+
+    // Initialize UI
+    setStage(0);
+  </script>
+</body>
+</html>
